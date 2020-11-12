@@ -1,5 +1,6 @@
 package edu.kpi.ip71.dovhopoliuk;
 
+import edu.kpi.ip71.dovhopoliuk.caesar.CaesarXorSolution;
 import edu.kpi.ip71.dovhopoliuk.railfence.RailFenceSolution;
 
 public class Main {
@@ -7,5 +8,6 @@ public class Main {
     public static void main(final String... args) {
 
         new RailFenceSolution().solve("resources/railfence/input.txt", "resources/railfence/output.txt");
+        new CaesarXorSolution().solve("resources/caesar/input.txt", "resources/caesar/output.txt");
     }
 }
