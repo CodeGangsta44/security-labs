@@ -4,7 +4,6 @@ import edu.kpi.ip71.dovhopoliuk.utils.SecurityUtils;
 
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -19,12 +18,30 @@ public class SubstitutionWorker implements Callable<String> {
 
     @Override
     public String call() {
-        //TODO Not correct working algorithm
+
         System.out.println(decrypt("SDXSSNDMBQYOS", "TABCDEFGHIJKLMNOPQRSUVWXYZ"));
         System.out.println(encrypt("TEXTTOENCRYPT", "TABCDEFGHIJKLMNOPQRSUVWXYZ"));
 
         System.out.println(getFitness("SDXSSNDMBQYOS", "TABCDEFGHIJKLMNOPQRSUVWXYZ"));
+
+        System.out.println(generateInitialRandomKeys(1000));
+
         return "";
+    }
+
+    private List<String> generateInitialRandomKeys(final int sizeOfPopulation) {
+
+        final Set<String> generatedKeys = new HashSet<>();
+
+        List<Character> alpha = getEnglishAlphabetStream().map(Character::toUpperCase).collect(Collectors.toList());
+
+        while (generatedKeys.size() < sizeOfPopulation) {
+
+            Collections.shuffle(alpha);
+            generatedKeys.add(alpha.stream().map(String::valueOf).collect(Collectors.joining()));
+        }
+
+        return new ArrayList<>(generatedKeys);
     }
 
     //TODO Replace duplicate
@@ -43,7 +60,7 @@ public class SubstitutionWorker implements Callable<String> {
         }
 
         return text.chars()
-                .mapToObj(character -> Optional.of(keyList.indexOf((char)character))
+                .mapToObj(character -> Optional.of(keyList.indexOf((char) character))
                         .filter(value -> value >= 0)
                         .map(value -> String.valueOf(alphabetList.get(value)))
                         .orElse(" "))
@@ -67,10 +84,10 @@ public class SubstitutionWorker implements Callable<String> {
 
         return text.chars()
                 .mapToObj(character ->
-                    Optional.of(alphabetList.indexOf((char)character))
-                            .filter(value -> value >= 0)
-                            .map(value -> String.valueOf(keyList.get(value)))
-                            .orElse(" "))
+                        Optional.of(alphabetList.indexOf((char) character))
+                                .filter(value -> value >= 0)
+                                .map(value -> String.valueOf(keyList.get(value)))
+                                .orElse(" "))
                 .collect(Collectors.joining());
     }
 
