@@ -20,16 +20,20 @@ public class SubstitutionWorker implements Callable<String> {
     @Override
     public String call() {
         //TODO Not correct working algorithm
-        System.out.println(decrypt("SDXS SN DMBQYOS", "TABDCEFGHIJKLMNOPQRSUVWXYZ"));
-        System.out.println(encrypt("TEXT TO ENCRYPT", "TABCDEFGHIJKLMNOPQRSUVWXYZ"));
+        System.out.println(decrypt("SDXSSNDMBQYOS", "TABCDEFGHIJKLMNOPQRSUVWXYZ"));
+        System.out.println(encrypt("TEXTTOENCRYPT", "TABCDEFGHIJKLMNOPQRSUVWXYZ"));
+
+        System.out.println(getFitness("SDXSSNDMBQYOS", "TABCDEFGHIJKLMNOPQRSUVWXYZ"));
         return "";
     }
 
     //TODO Replace duplicate
     private String decrypt(String text, String key) {
+
         List<Character> alphabetList = getEnglishAlphabetStream()
                 .map(Character::toUpperCase)
                 .collect(Collectors.toList());
+
         List<Character> keyList = Arrays.stream(key.split(""))
                 .map(st -> st.charAt(0))
                 .collect(Collectors.toList());
@@ -38,21 +42,21 @@ public class SubstitutionWorker implements Callable<String> {
             throw new IllegalArgumentException("Illegal key");
         }
 
-        String result = text;
-        for (int i = 0; i < alphabetList.size(); i++) {
-            Character alphabetLetter = alphabetList.get(i);
-            Character keyLetter = keyList.get(i);
-
-            result = result.replace(keyLetter, alphabetLetter);
-        }
-        return result;
+        return text.chars()
+                .mapToObj(character -> Optional.of(keyList.indexOf((char)character))
+                        .filter(value -> value >= 0)
+                        .map(value -> String.valueOf(alphabetList.get(value)))
+                        .orElse(" "))
+                .collect(Collectors.joining());
     }
 
     //TODO Replace duplicate
     private String encrypt(String text, String key) {
+
         List<Character> alphabetList = getEnglishAlphabetStream()
                 .map(Character::toUpperCase)
                 .collect(Collectors.toList());
+
         List<Character> keyList = Arrays.stream(key.split(""))
                 .map(st -> st.charAt(0))
                 .collect(Collectors.toList());
@@ -61,15 +65,13 @@ public class SubstitutionWorker implements Callable<String> {
             throw new IllegalArgumentException("Illegal key");
         }
 
-        String result = text;
-        for (int i = 0; i < alphabetList.size(); i++) {
-            Character alphabetLetter = alphabetList.get(i);
-            Character keyLetter = keyList.get(i);
-
-
-            result = result.replace(alphabetLetter, keyLetter);
-        }
-        return result;
+        return text.chars()
+                .mapToObj(character ->
+                    Optional.of(alphabetList.indexOf((char)character))
+                            .filter(value -> value >= 0)
+                            .map(value -> String.valueOf(keyList.get(value)))
+                            .orElse(" "))
+                .collect(Collectors.joining());
     }
 
     private double getFitness(String encryptedText, String key) {
@@ -92,7 +94,7 @@ public class SubstitutionWorker implements Callable<String> {
                 .map(Character::toUpperCase)
                 .mapToDouble(letter -> {
                     double expectedOccurrences = calculateExpectedOccurrences(textLength, letter);
-                    double actualOccurrences = textCharactersOccurrences.get(letter);
+                    double actualOccurrences = textCharactersOccurrences.getOrDefault(letter, 0);
 
                     return abs(expectedOccurrences - actualOccurrences);
                 }).sum();
