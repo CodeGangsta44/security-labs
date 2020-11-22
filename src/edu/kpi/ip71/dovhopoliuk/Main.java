@@ -14,8 +14,6 @@ public class Main {
 //        new RailFenceSolution().solve("resources/railfence/input.txt", "resources/railfence/output.txt");
 //        new CaesarXorSolution().solve("resources/caesar/input.txt", "resources/caesar/output.txt");
 //        new VigenereXorSolution().solve("resources/vigenere/input.txt", "resources/vigenere/output.txt");
-//        new SubstitutionSolution().solve("resources/substitution/input.txt", "resources/substitution/output.txt");
-
-        List<Character> list = List.of('c', null, 'k');
+        new SubstitutionSolution().solve("resources/substitution/input.txt", "resources/substitution/output.txt");
     }
 }

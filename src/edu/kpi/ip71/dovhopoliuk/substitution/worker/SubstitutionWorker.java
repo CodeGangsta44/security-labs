@@ -11,16 +11,16 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.lang.Math.abs;
+import static java.lang.Math.pow;
 
 public class SubstitutionWorker implements Callable<String> {
-
-    private static final int TOURNAMENT_SELECTION = 20;
+    private static final int TOURNAMENT_SELECTION = 100;
     private static final boolean ELITISM = true;
     private static final int SIZE_OF_POPULATION = 500;
-    private static final int MAX_GENERATION = 1000;
+    private static final int MAX_GENERATION = 2000;
     private static final int ALPHABET_LENGTH = 26;
     private static final double CROSSOVER_POSSIBILITY = 0.5;
-    private static final double MUTATION_POSSIBILITY = 0.01;
+    private static final double MUTATION_POSSIBILITY = 0.025;
     private static final char EMPTY_CHAR = '_';
 
     private String text;
@@ -155,29 +155,56 @@ public class SubstitutionWorker implements Callable<String> {
     private double getFitness(String encryptedText, String key) {
         int textLength = encryptedText.length();
         String decryptedText = decrypt(encryptedText, key);
+        return  -calculateChiSquared(decryptedText);
 
-        List<Character> decryptedTextChars = decryptedText.chars()
-                .mapToObj(c -> (char) c)
-                .collect(Collectors.toList());
+//        List<Character> decryptedTextChars = decryptedText.chars()
+//                .mapToObj(c -> (char) c)
+//                .collect(Collectors.toList());
+//
+//        final Map<Character, Integer> textCharactersOccurrences = decryptedTextChars
+//                .stream()
+//                .distinct()
+//                .map(character -> Map.entry(character, Collections.frequency(decryptedTextChars, character)))
+//                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (existing, replacement) -> existing, TreeMap::new));
+//
+//        double minExpectedOccurrences = getMinExpectedOccurrenceForTextLength(textLength);
+//
+//        double sum = getEnglishAlphabetStream()
+//                .map(Character::toUpperCase)
+//                .mapToDouble(letter -> {
+//                    double expectedOccurrences = calculateExpectedOccurrences(textLength, letter);
+//                    double actualOccurrences = textCharactersOccurrences.getOrDefault(letter, 0);
+//
+//                    return abs(expectedOccurrences - actualOccurrences);
+//                }).sum();
+//
+//        return ((2 * (textLength - minExpectedOccurrences)) - sum) / (2 * (textLength - minExpectedOccurrences));
+    }
 
-        final Map<Character, Integer> textCharactersOccurrences = decryptedTextChars
-                .stream()
+    private double calculateChiSquared(final String decodedText) {
+
+        final List<Character> decodedTextCharacters = decodedText
+                .chars().mapToObj(c -> (char) c).collect(Collectors.toList());
+
+        final Map<Character, Integer> textCharactersOccurrences = decodedTextCharacters.stream()
                 .distinct()
-                .map(character -> Map.entry(character, Collections.frequency(decryptedTextChars, character)))
+                .map(character -> Map.entry(character, Collections.frequency(decodedTextCharacters, character)))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (existing, replacement) -> existing, TreeMap::new));
 
-        double minExpectedOccurrences = getMinExpectedOccurrenceForTextLength(textLength);
+        return Arrays.stream(SecurityUtils.ENGLISH_ALPHABET.split(""))
+                .map(letter -> letter.charAt(0))
+                .mapToDouble(letter -> calculateChiSquaredForLetter(letter, decodedText, textCharactersOccurrences))
+                .sum();
+    }
 
-        double sum = getEnglishAlphabetStream()
-                .map(Character::toUpperCase)
-                .mapToDouble(letter -> {
-                    double expectedOccurrences = calculateExpectedOccurrences(textLength, letter);
-                    double actualOccurrences = textCharactersOccurrences.getOrDefault(letter, 0);
+    private double calculateChiSquaredForLetter(final Character letter, final String decodedText, final Map<Character, Integer> textCharactersOccurrences) {
 
-                    return abs(expectedOccurrences - actualOccurrences);
-                }).sum();
+        final int textLength = decodedText.length();
+        final double letterFrequency = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(letter);
+        final double actualOccurrences = Optional.ofNullable(textCharactersOccurrences.get(Character.toUpperCase(letter))).orElse(0);
+        final double expectedOccurrences = letterFrequency * textLength;
 
-        return ((2 * (textLength - minExpectedOccurrences)) - sum) / (2 * (textLength - minExpectedOccurrences));
+        return (pow((actualOccurrences - expectedOccurrences), 2)) / expectedOccurrences;
     }
 
     private Stream<Character> getEnglishAlphabetStream() {
@@ -214,8 +241,17 @@ public class SubstitutionWorker implements Callable<String> {
                 });
 
         getEnglishAlphabetStream()
+                .map(Character::toUpperCase)
                 .filter(character -> !child.getKey().contains(character))
-                .forEach(character -> child.getKey().set(child.getKey().indexOf(EMPTY_CHAR), character));
+                .forEach(character -> {
+                    List<Integer> freeIndexes = IntStream.range(0, ALPHABET_LENGTH)
+                            .filter(index -> child.getKey().get(index).equals(EMPTY_CHAR))
+                            .boxed()
+                            .collect(Collectors.toList());
+                    int randomIndex = (int) (Math.random() * freeIndexes.size());
+
+                    child.getKey().set(freeIndexes.get(randomIndex), character);
+                });
 
         return child;
     }
