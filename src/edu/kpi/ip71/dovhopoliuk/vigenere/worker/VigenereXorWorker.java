@@ -2,18 +2,15 @@ package edu.kpi.ip71.dovhopoliuk.vigenere.worker;
 
 import edu.kpi.ip71.dovhopoliuk.utils.Base16;
 import edu.kpi.ip71.dovhopoliuk.utils.SecurityUtils;
-import edu.kpi.ip71.dovhopoliuk.vigenere.tree.SolutionTree;
 
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
-import java.util.function.ToDoubleFunction;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.lang.Math.pow;
-import static java.util.Objects.isNull;
 
 public class VigenereXorWorker implements Callable<String> {
 
@@ -23,108 +20,90 @@ public class VigenereXorWorker implements Callable<String> {
             .mapToObj(c -> (char) c)
             .collect(Collectors.toList());
 
-    private String text;
+    private final String text;
 
     public static final Collector<Character, StringBuilder, String> STRING_FROM_CHARS_COLLECTOR =
             Collector.of(StringBuilder::new, StringBuilder::append, StringBuilder::append, StringBuilder::toString);
 
     public VigenereXorWorker(final String text) {
-        this.text = text;
+
+        this.text = Base16.getDecoder().decode(text);
     }
 
     @Override
     public String call() {
-        text = Base16.getDecoder().decode(text);
 
         final int lengthOfKey = (int) getKeyLength();
 
-        Map<Integer, List<Character>> coincidenceTable = createCoincidenceTable(text.toCharArray(), lengthOfKey);
+        final Map<Integer, List<Character>> coincidenceTable = createCoincidenceTable(text.toCharArray(), lengthOfKey);
 
-        StringBuilder keyBuilder = new StringBuilder();
-        for (Map.Entry<Integer, List<Character>> sameKeyEncryptedChars : coincidenceTable.entrySet()) {
-            String sameLetterEncryptedText = sameKeyEncryptedChars.getValue().stream().collect(STRING_FROM_CHARS_COLLECTOR);
-            keyBuilder.append(findKey(sameLetterEncryptedText));
-        }
-        String key = keyBuilder.toString();
+        String key = findKey(coincidenceTable);
 
         return decodeWithKey(text, key);
     }
 
-    public String decode(String textToEncode, String key) {
+    public String decode(final String textToEncode, final String key) {
+
         return textToEncode.chars().mapToObj(c -> (char) (c ^ key.charAt(0)))
                 .collect(STRING_FROM_CHARS_COLLECTOR);
     }
 
-    private String findKey(String text) {
-        Map<Character, Double> chiSquaredForKeys = new LinkedHashMap<>();
-        for (Character key : CIPHER_ALPHABET) {
-            String decodedText = decode(text, String.valueOf(key));
-            double chiSquared = calculateChiSquared(decodedText);
-            chiSquaredForKeys.put(key, chiSquared);
-        }
-        Comparator<Map.Entry<Character, Double>> entryComparator = Comparator
-                .comparingDouble(Map.Entry::getValue);
+    private String findKey(final Map<Integer, List<Character>> coincidenceTable) {
 
-        Map.Entry<Character, Double> minChiSquaredForKey = chiSquaredForKeys
-                .entrySet()
-                .stream()
-                .min(entryComparator)
-                .orElseThrow();
-
-        return minChiSquaredForKey.getKey().toString();
+        return coincidenceTable.values().stream()
+                .map(characters -> findKeyLetter(characters.stream().map(String::valueOf).collect(Collectors.joining())))
+                .collect(Collectors.joining());
     }
 
-    private double calculateChiSquared(String decodedText) {
-        Map<Character, Integer> textCharactersOccurrences = new TreeMap<>();
+    private String findKeyLetter(final String text) {
 
-        List<Character> decodedTextCharacters = decodedText
+        return CIPHER_ALPHABET.stream()
+                .map(key -> Map.entry(key, calculateChiSquared(decode(text, String.valueOf(key)))))
+                .min(Comparator.comparingDouble(Map.Entry::getValue))
+                .map(Map.Entry::getKey)
+                .map(Object::toString)
+                .orElseThrow();
+    }
+
+    private double calculateChiSquared(final String decodedText) {
+
+        final List<Character> decodedTextCharacters = decodedText
                 .chars().mapToObj(c -> (char) c).collect(Collectors.toList());
-        List<Character> distinctChars = decodedTextCharacters.stream().distinct().collect(Collectors.toList());
 
-        for (Character character : distinctChars) {
-            int charOccurrences = Collections.frequency(decodedTextCharacters, character);
-            textCharactersOccurrences.put(character, charOccurrences);
-        }
+        final Map<Character, Integer> textCharactersOccurrences = decodedTextCharacters.stream()
+                .distinct()
+                .map(character -> Map.entry(character, Collections.frequency(decodedTextCharacters, character)))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (existing, replacement) -> existing, TreeMap::new));
 
         return Arrays.stream(SecurityUtils.ENGLISH_ALPHABET.split(""))
                 .map(letter -> letter.charAt(0))
-                .mapToDouble(letter -> {
-                    int textLength = decodedText.length();
-                    double letterFrequency = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(letter);
-                    double actualOccurrences = Optional.ofNullable(textCharactersOccurrences.get(letter)).orElse(0);
-                    double expectedOccurrences = letterFrequency * textLength;
-
-                    return (pow((actualOccurrences - expectedOccurrences), 2)) / expectedOccurrences;
-                }).sum();
+                .mapToDouble(letter -> calculateChiSquaredForLetter(letter, decodedText, textCharactersOccurrences))
+                .sum();
     }
 
-    private Map<Integer, List<Character>> createCoincidenceTable(char[] textSymbols, int keyLength) {
-        Map<Integer, List<Character>> sameKeyLetterEncryptedChars = new LinkedHashMap<>();
-        for (int i = 0; i < textSymbols.length; i++) {
-            int keyLetterPosition = i % keyLength;
+    private double calculateChiSquaredForLetter(final Character letter, final String decodedText, final Map<Character, Integer> textCharactersOccurrences) {
 
-            List<Character> characters = sameKeyLetterEncryptedChars.get(keyLetterPosition);
-            if (isNull(characters)) {
-                characters = new ArrayList<>();
-                characters.add(textSymbols[i]);
-                sameKeyLetterEncryptedChars.put(keyLetterPosition, characters);
-            } else {
-                characters.add(textSymbols[i]);
-            }
-        }
-        return sameKeyLetterEncryptedChars;
+        final int textLength = decodedText.length();
+        final double letterFrequency = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(letter);
+        final double actualOccurrences = Optional.ofNullable(textCharactersOccurrences.get(letter)).orElse(0);
+        final double expectedOccurrences = letterFrequency * textLength;
+
+        return (pow((actualOccurrences - expectedOccurrences), 2)) / expectedOccurrences;
     }
 
-    private String decodeWithKey(String encodedText, String key) {
-        char[] charsFromText = encodedText.toCharArray();
-        List<Character> decodedCharacters = new ArrayList<>();
-        for (int i = 0; i < charsFromText.length; i++) {
-            char charFromText = charsFromText[i];
-            char decodedChar = (char) (charFromText ^ key.charAt(i % key.length()));
-            decodedCharacters.add(decodedChar);
-        }
-        Optional<String> reduce = decodedCharacters.stream().map(String::valueOf).reduce(String::concat);
-        return reduce.orElse("");
+    private Map<Integer, List<Character>> createCoincidenceTable(final char[] textSymbols, final int keyLength) {
+
+        return IntStream.range(0, textSymbols.length)
+                .boxed()
+                .collect(Collectors.groupingBy(index -> index % keyLength,
+                        Collectors.mapping(index -> textSymbols[index], Collectors.toList())));
+    }
+
+    private String decodeWithKey(final String encodedText, final String key) {
+
+        return IntStream.range(0, encodedText.length())
+                .mapToObj(index -> String.valueOf((char) (encodedText.charAt(index) ^ key.charAt(index % key.length()))))
+                .collect(Collectors.joining());
     }
 
     private long getKeyLength() {
