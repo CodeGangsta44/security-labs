@@ -7,15 +7,21 @@ import edu.kpi.ip71.dovhopoliuk.utils.SecurityUtils;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.lang.Math.abs;
 
 public class SubstitutionWorker implements Callable<String> {
+
     private static final int TOURNAMENT_SELECTION = 20;
     private static final boolean ELITISM = true;
     private static final int SIZE_OF_POPULATION = 500;
     private static final int MAX_GENERATION = 1000;
+    private static final int ALPHABET_LENGTH = 26;
+    private static final double CROSSOVER_POSSIBILITY = 0.5;
+    private static final double MUTATION_POSSIBILITY = 0.01;
+    private static final char EMPTY_CHAR = '_';
 
     private String text;
 
@@ -189,5 +195,50 @@ public class SubstitutionWorker implements Callable<String> {
     private double calculateExpectedOccurrences(int textLength, Character letter) {
         double frequencyForLetter = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(Character.toLowerCase(letter));
         return textLength * frequencyForLetter;
+    }
+
+    private Individual crossover(final Individual firstParent, final Individual secondParent) {
+
+        Individual child = new Individual();
+
+        child.setKey(IntStream.range(0, ALPHABET_LENGTH).mapToObj(index -> EMPTY_CHAR).collect(Collectors.toList()));
+
+        IntStream.range(0, ALPHABET_LENGTH)
+                .forEach(index -> {
+                    List<Character> childKey = child.getKey();
+                    Character characterToAdd = getParentForGen(firstParent, secondParent).getKey().get(index);
+
+                    if (!childKey.contains(characterToAdd)) {
+                        childKey.set(index, characterToAdd);
+                    }
+                });
+
+        getEnglishAlphabetStream()
+                .filter(character -> !child.getKey().contains(character))
+                .forEach(character -> child.getKey().set(child.getKey().indexOf(EMPTY_CHAR), character));
+
+        return child;
+    }
+
+    private void mutate(final Individual child) {
+
+        List<Character> key = child.getKey();
+
+        IntStream.range(0, ALPHABET_LENGTH)
+                .forEach(index -> {
+                    if (Math.random() <= MUTATION_POSSIBILITY) {
+                        final int firstPosition = (int) (Math.random() * ALPHABET_LENGTH);
+                        final int secondPosition = (int) (Math.random() * ALPHABET_LENGTH);
+
+                        char buffer = key.get(firstPosition);
+                        key.set(firstPosition, key.get(secondPosition));
+                        key.set(secondPosition, buffer);
+                    }
+                });
+    }
+
+    private Individual getParentForGen(Individual firstParent, Individual secondParent) {
+
+        return Math.random() <= CROSSOVER_POSSIBILITY ? firstParent : secondParent;
     }
 }
