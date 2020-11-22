@@ -14,14 +14,20 @@ import static java.lang.Math.abs;
 import static java.lang.Math.pow;
 
 public class SubstitutionWorker implements Callable<String> {
-    private static final int TOURNAMENT_SELECTION = 100;
-    private static final boolean ELITISM = true;
-    private static final int SIZE_OF_POPULATION = 500;
-    private static final int MAX_GENERATION = 2000;
+    private static final int TOURNAMENT_SELECTION = 10;
+    private static final boolean ELITISM = false;
+    private static final int SIZE_OF_POPULATION = 50;
+    private static final int MAX_GENERATION = 500;
     private static final int ALPHABET_LENGTH = 26;
     private static final double CROSSOVER_POSSIBILITY = 0.5;
-    private static final double MUTATION_POSSIBILITY = 0.025;
+    private static final double MUTATION_POSSIBILITY = 0.01;
     private static final char EMPTY_CHAR = '_';
+
+//    private static final List<String> bigrams = List.of("th", "en", "ng", "he", "ed", "of", "in", "to", "al", "er", "it", "de", "an", "ou", "se", "re", "ea", "le", "nd", "hi", "sa", "at", "is", "si", "on", "or", "ar", "nt", "ti", "ve", "ha", "as", "ra", "es", "te", "ld", "st", "et", "ur");
+
+    private static final List<String> bigrams = List.of("th", "en", "ng", "he", "ed", "of", "in", "to");
+
+    private static final List<String> trigrams = List.of("the", "and", "tha", "ent", "ing", "ion", "tio", "for", "nde", "has", "nce", "edt", "tis", "oft", "sth", "men");
 
     private String text;
 
@@ -122,15 +128,19 @@ public class SubstitutionWorker implements Callable<String> {
             elitismOffset = 0;
         }
 
-        for (int i = elitismOffset; i < parentPopulation.getIndividuals().size(); i++) {
+        for (int i = elitismOffset; i < SIZE_OF_POPULATION; i++) {
             Individual p1 = tournamentSelection(parentPopulation);
             Individual p2 = tournamentSelection(parentPopulation);
-            Individual child = crossover(p1, p2);
-            mutate(child);
-
-            child.setFitness(getFitness(text, child.getKey().stream().map(String::valueOf).collect(Collectors.joining())));
-
-            childPopulation.getIndividuals().add(child);
+            Individual child1 = crossover(p1, p2, false);
+            Individual child2 = crossover(p1, p2, true);
+            mutate(child1);
+            mutate(child2);
+//
+            child1.setFitness(getFitness(text, child1.getKey().stream().map(String::valueOf).collect(Collectors.joining())));
+            child2.setFitness(getFitness(text, child2.getKey().stream().map(String::valueOf).collect(Collectors.joining())));
+//
+            childPopulation.getIndividuals().add(child1);
+            childPopulation.getIndividuals().add(child2);
         }
 
         return childPopulation;
@@ -155,30 +165,46 @@ public class SubstitutionWorker implements Callable<String> {
     private double getFitness(String encryptedText, String key) {
         int textLength = encryptedText.length();
         String decryptedText = decrypt(encryptedText, key);
-        return  -calculateChiSquared(decryptedText);
+//        return  -calculateChiSquared(decryptedText);
 
-//        List<Character> decryptedTextChars = decryptedText.chars()
-//                .mapToObj(c -> (char) c)
-//                .collect(Collectors.toList());
-//
-//        final Map<Character, Integer> textCharactersOccurrences = decryptedTextChars
-//                .stream()
-//                .distinct()
-//                .map(character -> Map.entry(character, Collections.frequency(decryptedTextChars, character)))
-//                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (existing, replacement) -> existing, TreeMap::new));
-//
-//        double minExpectedOccurrences = getMinExpectedOccurrenceForTextLength(textLength);
-//
-//        double sum = getEnglishAlphabetStream()
-//                .map(Character::toUpperCase)
-//                .mapToDouble(letter -> {
-//                    double expectedOccurrences = calculateExpectedOccurrences(textLength, letter);
-//                    double actualOccurrences = textCharactersOccurrences.getOrDefault(letter, 0);
-//
-//                    return abs(expectedOccurrences - actualOccurrences);
-//                }).sum();
-//
-//        return ((2 * (textLength - minExpectedOccurrences)) - sum) / (2 * (textLength - minExpectedOccurrences));
+        List<Character> decryptedTextChars = decryptedText.chars()
+                .mapToObj(c -> (char) c)
+                .collect(Collectors.toList());
+
+        final Map<Character, Integer> textCharactersOccurrences = decryptedTextChars
+                .stream()
+                .distinct()
+                .map(character -> Map.entry(character, Collections.frequency(decryptedTextChars, character)))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (existing, replacement) -> existing, TreeMap::new));
+
+        double minExpectedOccurrences = getMinExpectedOccurrenceForTextLength(textLength);
+
+        double sum = getEnglishAlphabetStream()
+                .map(Character::toUpperCase)
+                .mapToDouble(letter -> {
+                    double expectedOccurrences = calculateExpectedOccurrences(textLength, letter);
+                    double actualOccurrences = textCharactersOccurrences.getOrDefault(letter, 0);
+
+                    return abs(expectedOccurrences - actualOccurrences);
+                }).sum();
+
+        return ((2 * (textLength - minExpectedOccurrences)) - sum) / (2 * (textLength - minExpectedOccurrences))
+                + (0.25 * calculateOccurrencesOfBigramsInText(decryptedText))
+                + (0.5 * calculateOccurrencesOfTrigramsInText(decryptedText));
+    }
+
+    private int calculateOccurrencesOfBigramsInText(final String text) {
+
+        return bigrams.stream()
+                .mapToInt(bigram -> (text.length() - text.replaceAll(bigram.toUpperCase(), "").length()) / 2)
+                .sum();
+    }
+
+    private int calculateOccurrencesOfTrigramsInText(final String text) {
+
+        return trigrams.stream()
+                .mapToInt(bigram -> (text.length() - text.replaceAll(bigram.toUpperCase(), "").length()) / 3)
+                .sum();
     }
 
     private double calculateChiSquared(final String decodedText) {
@@ -207,6 +233,19 @@ public class SubstitutionWorker implements Callable<String> {
         return (pow((actualOccurrences - expectedOccurrences), 2)) / expectedOccurrences;
     }
 
+    private int calculateOccurrencesOfLetterInText(final Character letter, final String text) {
+
+        return (int) text.chars()
+                .filter(character -> Character.valueOf((char) character).equals(letter))
+                .count();
+    }
+
+    private int calculateEthalonOccurrencesOfLetterInText(final Character letter, final String text) {
+
+        final double letterFrequency = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(Character.toLowerCase(letter));
+        return (int) letterFrequency * text.length();
+    }
+
     private Stream<Character> getEnglishAlphabetStream() {
         return Arrays.stream(SecurityUtils.ENGLISH_ALPHABET.split(""))
                 .map(st -> st.charAt(0));
@@ -224,34 +263,82 @@ public class SubstitutionWorker implements Callable<String> {
         return textLength * frequencyForLetter;
     }
 
-    private Individual crossover(final Individual firstParent, final Individual secondParent) {
+    private Individual crossover(final Individual firstParent, final Individual secondParent, final boolean reversed) {
 
         Individual child = new Individual();
 
         child.setKey(IntStream.range(0, ALPHABET_LENGTH).mapToObj(index -> EMPTY_CHAR).collect(Collectors.toList()));
 
-        IntStream.range(0, ALPHABET_LENGTH)
-                .forEach(index -> {
-                    List<Character> childKey = child.getKey();
-                    Character characterToAdd = getParentForGen(firstParent, secondParent).getKey().get(index);
+        List<Character> alph = getEnglishAlphabetStream().map(Character::toUpperCase).collect(Collectors.toList());
 
-                    if (!childKey.contains(characterToAdd)) {
-                        childKey.set(index, characterToAdd);
+        IntStream.range(0, ALPHABET_LENGTH)
+                .map(index -> reversed ? 25 - index : index)
+                .forEach(index -> {
+
+                    int firstParentOcc = calculateOccurrencesOfLetterInText(firstParent.getKey().get(index), text);
+                    int secondParentOcc = calculateOccurrencesOfLetterInText(secondParent.getKey().get(index), text);
+                    int realOcc = calculateEthalonOccurrencesOfLetterInText(alph.get(index), text);
+
+                    double firstDiff = Math.pow(realOcc - firstParentOcc, 2);
+                    double secondDiff = Math.pow(realOcc - secondParentOcc, 2);
+
+                    List<Character> childKey = child.getKey();
+
+                    if (firstDiff < secondDiff && !childKey.contains(firstParent.getKey().get(index))) {
+
+                        childKey.set(index, firstParent.getKey().get(index));
+
+                    } else if (firstDiff > secondDiff && !childKey.contains(secondParent.getKey().get(index))) {
+
+                        childKey.set(index, secondParent.getKey().get(index));
+
+                    } else if (!childKey.contains(firstParent.getKey().get(index))) {
+
+                        childKey.set(index, firstParent.getKey().get(index));
+
+                    } else if (!childKey.contains(secondParent.getKey().get(index))) {
+
+                        childKey.set(index, secondParent.getKey().get(index));
                     }
                 });
 
-        getEnglishAlphabetStream()
-                .map(Character::toUpperCase)
-                .filter(character -> !child.getKey().contains(character))
-                .forEach(character -> {
-                    List<Integer> freeIndexes = IntStream.range(0, ALPHABET_LENGTH)
-                            .filter(index -> child.getKey().get(index).equals(EMPTY_CHAR))
-                            .boxed()
-                            .collect(Collectors.toList());
-                    int randomIndex = (int) (Math.random() * freeIndexes.size());
+        IntStream.range(0, ALPHABET_LENGTH)
+                .map(index -> reversed ? 25 - index : index)
+                .filter(index -> child.getKey().get(index).equals(EMPTY_CHAR))
+                .forEach(index -> {
+                    Character charToSet = getEnglishAlphabetStream()
+                            .map(Character::toUpperCase)
+                            .filter(character -> !child.getKey().contains(character))
+                            .map(character -> {
+                                int occ = calculateOccurrencesOfLetterInText(character, text);
+                                int realOcc = calculateEthalonOccurrencesOfLetterInText(alph.get(index), text);
+                                double diff = Math.pow(realOcc - occ, 2);
 
-                    child.getKey().set(freeIndexes.get(randomIndex), character);
+                                return Map.entry(character, diff);
+                            })
+                            .min(Comparator.comparingDouble(Map.Entry::getValue))
+                            .map(Map.Entry::getKey)
+                            .orElseThrow();
+
+                    child.getKey().set(index, charToSet);
                 });
+
+//        getEnglishAlphabetStream()
+//                .map(Character::toUpperCase)
+//                .filter(character -> !child.getKey().contains(character))
+//                .forEach(character -> {
+//
+//
+//
+//                    List<Integer> freeIndexes = IntStream.range(0, ALPHABET_LENGTH)
+//                            .filter(index -> child.getKey().get(index).equals(EMPTY_CHAR))
+//                            .boxed()
+//                            .collect(Collectors.toList());
+//
+//                    int randomIndex = (int) (Math.random() * freeIndexes.size());
+//
+//                    child.getKey().set(freeIndexes.get(randomIndex), character);
+//                });
 
         return child;
     }

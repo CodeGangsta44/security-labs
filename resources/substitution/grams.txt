@@ -1,0 +1,4 @@
+"th", "en", "ng", "he", "ed", "of", "in", "to", "al", "er", "it", "de", "an", "ou", "se", "re", "ea", "le", "nd", "hi", "sa", "at", "is", "si", "on", "or", "ar", "nt", "ti", "ve", "ha", "as", "ra", "es", "te", "ld", "st", "et", "ur"
+
+
+"the", "and", "tha", "ent", "ing", "ion", "tio", "for", "nde", "has", "nce", "edt", "tis", "oft", "sth", "men"
