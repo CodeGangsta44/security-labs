@@ -1,6 +1,7 @@
 package edu.kpi.ip71.dovhopoliuk.substitution.worker;
 
 import edu.kpi.ip71.dovhopoliuk.substitution.model.Individual;
+import edu.kpi.ip71.dovhopoliuk.substitution.model.Population;
 import edu.kpi.ip71.dovhopoliuk.utils.SecurityUtils;
 
 import java.util.*;
@@ -11,6 +12,11 @@ import java.util.stream.Stream;
 import static java.lang.Math.abs;
 
 public class SubstitutionWorker implements Callable<String> {
+    private static final int TOURNAMENT_SELECTION = 20;
+    private static final boolean ELITISM = true;
+    private static final int SIZE_OF_POPULATION = 500;
+    private static final int MAX_GENERATION = 1000;
+
     private String text;
 
     public SubstitutionWorker(String text) {
@@ -19,15 +25,18 @@ public class SubstitutionWorker implements Callable<String> {
 
     @Override
     public String call() {
+        Population population = new Population(generateInitialIndividuals(SIZE_OF_POPULATION, text));
+        for (int generationCount = 1; generationCount < MAX_GENERATION; generationCount++) {
+            Individual fittest = getFittest(population);
 
-        System.out.println(decrypt("SDXSSNDMBQYOS", "TABCDEFGHIJKLMNOPQRSUVWXYZ"));
-        System.out.println(encrypt("TEXTTOENCRYPT", "TABCDEFGHIJKLMNOPQRSUVWXYZ"));
+            System.out.println("Generation number #" + generationCount);
+            System.out.println("Most fittest individual with fit " + fittest.getFitness() + " with key " + fittest.getKey());
 
-        System.out.println(getFitness("SDXSSNDMBQYOS", "TABCDEFGHIJKLMNOPQRSUVWXYZ"));
+            population = evolvePopulation(population);
+        }
 
-        System.out.println(generateInitialIndividuals(15, text));
-
-        return "";
+        List<Character> key = getFittest(population).getKey();
+        return decrypt(text, key.stream().map(String::valueOf).collect(Collectors.joining()));
     }
 
     private List<Individual> generateInitialIndividuals(final int sizeOfPopulation, final String encryptedText) {
@@ -94,6 +103,47 @@ public class SubstitutionWorker implements Callable<String> {
                                 .map(value -> String.valueOf(keyList.get(value)))
                                 .orElse(" "))
                 .collect(Collectors.joining());
+    }
+
+    private Population evolvePopulation(Population parentPopulation) {
+        int elitismOffset;
+        Population childPopulation = new Population(new ArrayList<>());
+
+        if (ELITISM) {
+            childPopulation.getIndividuals().add(getFittest(parentPopulation));
+            elitismOffset = 1;
+        } else {
+            elitismOffset = 0;
+        }
+
+        for (int i = elitismOffset; i < parentPopulation.getIndividuals().size(); i++) {
+            Individual p1 = tournamentSelection(parentPopulation);
+            Individual p2 = tournamentSelection(parentPopulation);
+            Individual child = crossover(p1, p2);
+            mutate(child);
+
+            child.setFitness(getFitness(text, child.getKey().stream().map(String::valueOf).collect(Collectors.joining())));
+
+            childPopulation.getIndividuals().add(child);
+        }
+
+        return childPopulation;
+    }
+
+    private Individual tournamentSelection(Population currentPopulation) {
+        Population tournamentPopulation = new Population(new ArrayList<>());
+        for (int i = 0; i < TOURNAMENT_SELECTION; i++) {
+            int randomIndex = (int) (Math.random() * currentPopulation.getIndividuals().size());
+            tournamentPopulation.getIndividuals().add(currentPopulation.getIndividuals().get(randomIndex));
+        }
+
+        return getFittest(tournamentPopulation);
+    }
+
+    private Individual getFittest(Population population) {
+        return population.getIndividuals().stream()
+                .max(Comparator.comparingDouble(Individual::getFitness))
+                .orElseThrow();
     }
 
     private double getFitness(String encryptedText, String key) {
