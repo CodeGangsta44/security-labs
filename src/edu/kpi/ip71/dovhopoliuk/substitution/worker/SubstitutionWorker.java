@@ -1,5 +1,6 @@
 package edu.kpi.ip71.dovhopoliuk.substitution.worker;
 
+import edu.kpi.ip71.dovhopoliuk.substitution.model.Individual;
 import edu.kpi.ip71.dovhopoliuk.utils.SecurityUtils;
 
 import java.util.*;
@@ -24,24 +25,28 @@ public class SubstitutionWorker implements Callable<String> {
 
         System.out.println(getFitness("SDXSSNDMBQYOS", "TABCDEFGHIJKLMNOPQRSUVWXYZ"));
 
-        System.out.println(generateInitialRandomKeys(1000));
+        System.out.println(generateInitialIndividuals(15, text));
 
         return "";
     }
 
-    private List<String> generateInitialRandomKeys(final int sizeOfPopulation) {
+    private List<Individual> generateInitialIndividuals(final int sizeOfPopulation, final String encryptedText) {
 
-        final Set<String> generatedKeys = new HashSet<>();
+        final Set<List<Character>> generatedKeys = new HashSet<>();
 
         List<Character> alpha = getEnglishAlphabetStream().map(Character::toUpperCase).collect(Collectors.toList());
 
         while (generatedKeys.size() < sizeOfPopulation) {
 
             Collections.shuffle(alpha);
-            generatedKeys.add(alpha.stream().map(String::valueOf).collect(Collectors.joining()));
+            generatedKeys.add(new ArrayList<>(alpha));
         }
 
-        return new ArrayList<>(generatedKeys);
+        return generatedKeys.stream()
+                .map(characters -> {
+                    String ketStr = characters.stream().map(String::valueOf).collect(Collectors.joining());
+                    return new Individual(characters, getFitness(encryptedText, ketStr));
+                }).collect(Collectors.toList());
     }
 
     //TODO Replace duplicate
