@@ -1,5 +1,9 @@
 package edu.kpi.ip71.dovhopoliuk.utils;
 
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
 
 public final class SecurityUtils {
@@ -32,4 +36,23 @@ public final class SecurityUtils {
             Map.entry('y', 0.02),
             Map.entry('z', 0.00074)
     );
+
+    public static final Map<String, Double> FOURGRAMS = getFourgrams();
+
+    private static final String FOURGRAMS_FILENAME = "resources/substitution/fourgrams.txt";
+
+    private static Map<String, Double> getFourgrams() {
+        Map<String, Double> fourgrams = new HashMap<>();
+        try (BufferedInputStream input = new BufferedInputStream(new FileInputStream(FOURGRAMS_FILENAME))) {
+            Files.lines(Path.of(FOURGRAMS_FILENAME))
+                    .forEach(s -> {
+                        String tetagram = s.substring(0, 4);
+                        double frequency = Double.parseDouble(s.substring(5));
+                        fourgrams.put(tetagram, frequency);
+                    });
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return fourgrams;
+    }
 }
