@@ -10,17 +10,16 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static java.lang.Math.abs;
 import static java.lang.Math.pow;
 
 public class SubstitutionWorker implements Callable<String> {
     private static final int TOURNAMENT_SELECTION = 100;
     private static final boolean ELITISM = true;
     private static final int SIZE_OF_POPULATION = 500;
-    private static final int MAX_GENERATION = 2000;
+    private static final int MAX_GENERATION = 50;
     private static final int ALPHABET_LENGTH = 26;
     private static final double CROSSOVER_POSSIBILITY = 0.5;
-    private static final double MUTATION_POSSIBILITY = 0.025;
+    private static final double MUTATION_POSSIBILITY = 0.1;
     private static final char EMPTY_CHAR = '_';
 
     private String text;
@@ -153,75 +152,40 @@ public class SubstitutionWorker implements Callable<String> {
     }
 
     private double getFitness(String encryptedText, String key) {
-        int textLength = encryptedText.length();
-        String decryptedText = decrypt(encryptedText, key);
-        return  -calculateChiSquared(decryptedText);
+        String newText = decrypt(encryptedText, key);
+        Map<String, Integer> cipherFourgrams = new HashMap<>();
 
-//        List<Character> decryptedTextChars = decryptedText.chars()
-//                .mapToObj(c -> (char) c)
-//                .collect(Collectors.toList());
-//
-//        final Map<Character, Integer> textCharactersOccurrences = decryptedTextChars
-//                .stream()
-//                .distinct()
-//                .map(character -> Map.entry(character, Collections.frequency(decryptedTextChars, character)))
-//                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (existing, replacement) -> existing, TreeMap::new));
-//
-//        double minExpectedOccurrences = getMinExpectedOccurrenceForTextLength(textLength);
-//
-//        double sum = getEnglishAlphabetStream()
-//                .map(Character::toUpperCase)
-//                .mapToDouble(letter -> {
-//                    double expectedOccurrences = calculateExpectedOccurrences(textLength, letter);
-//                    double actualOccurrences = textCharactersOccurrences.getOrDefault(letter, 0);
-//
-//                    return abs(expectedOccurrences - actualOccurrences);
-//                }).sum();
-//
-//        return ((2 * (textLength - minExpectedOccurrences)) - sum) / (2 * (textLength - minExpectedOccurrences));
-    }
+        IntStream.range(0, newText.length() - 4)
+                .mapToObj(i -> newText.substring(i, i + 4))
+                .forEach(tet -> {
+                    if (cipherFourgrams.containsKey(tet)) {
+                        Integer count = cipherFourgrams.get(tet);
+                        cipherFourgrams.put(tet, count + 1);
+                    } else {
+                        cipherFourgrams.put(tet, 1);
+                    }
+                });
 
-    private double calculateChiSquared(final String decodedText) {
 
-        final List<Character> decodedTextCharacters = decodedText
-                .chars().mapToObj(c -> (char) c).collect(Collectors.toList());
+        double sigma = 2.0;
 
-        final Map<Character, Integer> textCharactersOccurrences = decodedTextCharacters.stream()
-                .distinct()
-                .map(character -> Map.entry(character, Collections.frequency(decodedTextCharacters, character)))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (existing, replacement) -> existing, TreeMap::new));
+        return cipherFourgrams.entrySet().stream()
+                .filter(entry -> SecurityUtils.FOURGRAMS.containsKey(entry.getKey()))
+                .mapToDouble(entry -> {
+                    Double sourceLogFreq = SecurityUtils.FOURGRAMS.get(entry.getKey());
+                    Double logFreq = Math.log(entry.getValue()
+                            / (double) (newText.length() - 3));
 
-        return Arrays.stream(SecurityUtils.ENGLISH_ALPHABET.split(""))
-                .map(letter -> letter.charAt(0))
-                .mapToDouble(letter -> calculateChiSquaredForLetter(letter, decodedText, textCharactersOccurrences))
+                    return Math.exp(-(logFreq - sourceLogFreq)
+                            * (logFreq - sourceLogFreq) / (2 * pow(sigma, 2)));
+                })
                 .sum();
-    }
 
-    private double calculateChiSquaredForLetter(final Character letter, final String decodedText, final Map<Character, Integer> textCharactersOccurrences) {
-
-        final int textLength = decodedText.length();
-        final double letterFrequency = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(letter);
-        final double actualOccurrences = Optional.ofNullable(textCharactersOccurrences.get(Character.toUpperCase(letter))).orElse(0);
-        final double expectedOccurrences = letterFrequency * textLength;
-
-        return (pow((actualOccurrences - expectedOccurrences), 2)) / expectedOccurrences;
     }
 
     private Stream<Character> getEnglishAlphabetStream() {
         return Arrays.stream(SecurityUtils.ENGLISH_ALPHABET.split(""))
                 .map(st -> st.charAt(0));
-    }
-
-    private double getMinExpectedOccurrenceForTextLength(int textLength) {
-        return getEnglishAlphabetStream()
-                .map(letter -> calculateExpectedOccurrences(textLength, letter))
-                .mapToDouble(Double::valueOf)
-                .min().orElseThrow();
-    }
-
-    private double calculateExpectedOccurrences(int textLength, Character letter) {
-        double frequencyForLetter = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(Character.toLowerCase(letter));
-        return textLength * frequencyForLetter;
     }
 
     private Individual crossover(final Individual firstParent, final Individual secondParent) {
