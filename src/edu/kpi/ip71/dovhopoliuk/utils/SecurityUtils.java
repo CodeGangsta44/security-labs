@@ -1,10 +1,11 @@
 package edu.kpi.ip71.dovhopoliuk.utils;
 
-import java.io.*;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 
 public final class SecurityUtils {
     public static final String ENGLISH_ALPHABET = "abcdefghijklmnopqrstuvwxyz";
@@ -36,23 +37,30 @@ public final class SecurityUtils {
             Map.entry('y', 0.02),
             Map.entry('z', 0.00074)
     );
-
-    public static final Map<String, Double> FOURGRAMS = getFourgrams();
-
     private static final String FOURGRAMS_FILENAME = "resources/substitution/fourgrams.txt";
+    public static final Map<String, Double> FOURGRAMS = getFourgrams();
+    private static final String TRIGRAMS_FILENAME = "resources/polyalphabetic/trigrams.txt";
+    public static final Map<String, Double> TRIGRAMS = getTrigrams();
 
     private static Map<String, Double> getFourgrams() {
-        Map<String, Double> fourgrams = new HashMap<>();
-        try (BufferedInputStream input = new BufferedInputStream(new FileInputStream(FOURGRAMS_FILENAME))) {
-            Files.lines(Path.of(FOURGRAMS_FILENAME))
-                    .forEach(s -> {
-                        String tetagram = s.substring(0, 4);
-                        double frequency = Double.parseDouble(s.substring(5));
-                        fourgrams.put(tetagram, frequency);
-                    });
+        return getNgrams(4, FOURGRAMS_FILENAME);
+    }
+
+    private static Map<String, Double> getTrigrams() {
+        return getNgrams(3, TRIGRAMS_FILENAME);
+    }
+
+    private static Map<String, Double> getNgrams(int n, String ngramSourcePath) {
+        Map<String, Double> ngrams = new HashMap<>();
+        try (Stream<String> lines = Files.lines(Path.of(ngramSourcePath))) {
+            lines.forEach(s -> {
+                String ngram = s.substring(0, n);
+                double frequency = Double.parseDouble(s.substring(n + 1));
+                ngrams.put(ngram, frequency);
+            });
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return fourgrams;
+        return ngrams;
     }
 }

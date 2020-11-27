@@ -24,10 +24,10 @@ import static java.lang.Math.pow;
 
 public class PolyalphabeticWorker implements Callable<String> {
     private static final int KEY_SEARCH_PRECISION = 2000;
-    private static final int TOURNAMENT_SELECTION = 60;
+    private static final int TOURNAMENT_SELECTION = 100;
     private static final boolean ELITISM = false;
-    private static final int SIZE_OF_POPULATION = 300;
-    private static final int MAX_GENERATION = 500;
+    private static final int SIZE_OF_POPULATION = 500;
+    private static final int MAX_GENERATION = 10;
     private static final int ALPHABET_LENGTH = 26;
     private static final double CROSSOVER_POSSIBILITY = 0.7;
     private static final double MUTATION_POSSIBILITY = 0.025;
@@ -67,8 +67,9 @@ public class PolyalphabeticWorker implements Callable<String> {
                 populations.stream().map(this::getFittest).map(Individual::getKey).collect(Collectors.toList());
         keys.forEach(System.out::println);
 
-        System.out.println(decrypt(text, keys));
-        return "";
+        String decrypt = decrypt(text, keys);
+        System.out.println(decrypt);
+        return decrypt + "\n";
     }
 
     private List<Individual> generateInitialIndividuals(final int sizeOfPopulation, final String encryptedText) {
@@ -205,26 +206,26 @@ public class PolyalphabeticWorker implements Callable<String> {
 
     private double getFitness(String encryptedText, String key) {
         String newText = decrypt(encryptedText, key);
-        Map<String, Integer> cipherFourgrams = new HashMap<>();
+        Map<String, Integer> cipherTrigrams = new HashMap<>();
 
-        IntStream.range(0, newText.length() - 4)
-                .mapToObj(i -> newText.substring(i, i + 4))
-                .forEach(tet -> {
-                    if (cipherFourgrams.containsKey(tet)) {
-                        Integer count = cipherFourgrams.get(tet);
-                        cipherFourgrams.put(tet, count + 1);
+        IntStream.range(0, newText.length() - 3)
+                .mapToObj(i -> newText.substring(i, i + 3))
+                .forEach(tri -> {
+                    if (cipherTrigrams.containsKey(tri)) {
+                        Integer count = cipherTrigrams.get(tri);
+                        cipherTrigrams.put(tri, count + 1);
                     } else {
-                        cipherFourgrams.put(tet, 1);
+                        cipherTrigrams.put(tri, 1);
                     }
                 });
 
 
         double sigma = 2.0;
 
-        return cipherFourgrams.entrySet().stream()
-                .filter(entry -> SecurityUtils.FOURGRAMS.containsKey(entry.getKey()))
+        return cipherTrigrams.entrySet().stream()
+                .filter(entry -> SecurityUtils.TRIGRAMS.containsKey(entry.getKey()))
                 .mapToDouble(entry -> {
-                    Double sourceLogFreq = SecurityUtils.FOURGRAMS.get(entry.getKey());
+                    Double sourceLogFreq = SecurityUtils.TRIGRAMS.get(entry.getKey());
                     Double logFreq = Math.log(entry.getValue()
                             / (double) (newText.length() - 3));
 
