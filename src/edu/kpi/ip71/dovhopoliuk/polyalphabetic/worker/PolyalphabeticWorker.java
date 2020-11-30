@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
@@ -25,15 +26,18 @@ import static java.lang.Math.pow;
 public class PolyalphabeticWorker implements Callable<String> {
     private static final int KEY_SEARCH_PRECISION = 2000;
     private static final int TOURNAMENT_SELECTION = 100;
-    private static final boolean ELITISM = false;
-    private static final int SIZE_OF_POPULATION = 500;
-    private static final int MAX_GENERATION = 10;
+    private static final boolean ELITISM = true;
+    private static final double ELITISM_PERCENTAGE = 0.1;
+    private static final int SIZE_OF_POPULATION = 300;
+    private static final int MAX_GENERATION = 500;
     private static final int ALPHABET_LENGTH = 26;
     private static final double CROSSOVER_POSSIBILITY = 0.7;
-    private static final double MUTATION_POSSIBILITY = 0.025;
+    private static final double MUTATION_POSSIBILITY = 0.1;
     private static final char EMPTY_CHAR = '_';
+    private static final Random random = new Random();
+    private static final boolean SIMPLE_FITNESS = true;
 
-    private String text;
+    private final String text;
 
     public PolyalphabeticWorker(String text) {
         this.text = text;
@@ -46,8 +50,7 @@ public class PolyalphabeticWorker implements Callable<String> {
         Map<Integer, List<Character>> coincidenceTable = createCoincidenceTable(text.toCharArray(), keyLength);
 
         List<Population> populations = IntStream.range(0, keyLength).mapToObj(index ->
-                new Population(generateInitialIndividuals(SIZE_OF_POPULATION,
-                        coincidenceTable.get(index).stream().map(String::valueOf).collect(Collectors.joining()))))
+                new Population(generateInitialIndividuals(SIZE_OF_POPULATION, text, keyLength, index)))
                 .collect(Collectors.toList());
 
         for (int generationCount = 1; generationCount < MAX_GENERATION; generationCount++) {
@@ -59,7 +62,13 @@ public class PolyalphabeticWorker implements Callable<String> {
                     System.out.printf("Most fittest individual with fit %s with key %s%n", fittest.getFitness(),
                             fittest.getKey()));
 
-            populations = populations.stream().map(this::evolvePopulation).collect(Collectors.toList());
+            List<Population> list = new ArrayList<>();
+            for (int i = 0; i < populations.size(); i++) {
+                Population evolvePopulation =
+                        evolvePopulation(populations.get(i), text, keyLength, i);
+                list.add(evolvePopulation);
+            }
+            populations = list;
         }
 
 
@@ -72,7 +81,7 @@ public class PolyalphabeticWorker implements Callable<String> {
         return decrypt + "\n";
     }
 
-    private List<Individual> generateInitialIndividuals(final int sizeOfPopulation, final String encryptedText) {
+    private List<Individual> generateInitialIndividuals(final int sizeOfPopulation, final String encryptedText, int keyLength, int keyIndex) {
 
         final Set<List<Character>> generatedKeys = new HashSet<>();
 
@@ -87,7 +96,7 @@ public class PolyalphabeticWorker implements Callable<String> {
         return generatedKeys.stream()
                 .map(characters -> {
                     String ketStr = characters.stream().map(String::valueOf).collect(Collectors.joining());
-                    return new Individual(characters, getFitness(encryptedText, ketStr));
+                    return new Individual(characters, getFitness(encryptedText, ketStr, keyLength, keyIndex));
                 }).collect(Collectors.toList());
     }
 
@@ -138,6 +147,29 @@ public class PolyalphabeticWorker implements Callable<String> {
         return result.stream().map(String::valueOf).collect(Collectors.joining());
     }
 
+    private String decrypt(String text, List<Character> key, int keyLength, int keyIndex) {
+
+        List<Character> alphabetList = getEnglishAlphabetStream()
+                .map(Character::toUpperCase)
+                .collect(Collectors.toList());
+
+        if (key.size() != alphabetList.size()) {
+            throw new IllegalArgumentException("Illegal key");
+        }
+
+        List<Character> textChars = text.chars().mapToObj(intChar -> (char) intChar).collect(Collectors.toList());
+
+        for (int i = keyIndex; i < textChars.size() - keyIndex; i += keyLength) {
+            int indexOfChar = key.indexOf(textChars.get(i));
+            if (indexOfChar >= 0) {
+                Character replacedCharacter = alphabetList.get(indexOfChar);
+                textChars.set(i, replacedCharacter);
+            }
+        }
+        return textChars.stream().map(String::valueOf).collect(Collectors.joining());
+    }
+
+
     //TODO Replace duplicate
     private String encrypt(String text, String key) {
 
@@ -162,13 +194,15 @@ public class PolyalphabeticWorker implements Callable<String> {
                 .collect(Collectors.joining());
     }
 
-    private Population evolvePopulation(Population parentPopulation) {
+    private Population evolvePopulation(Population parentPopulation, String text, int keyLength, int keyIndex) {
         int elitismOffset;
         Population childPopulation = new Population(new ArrayList<>());
 
         if (ELITISM) {
-            childPopulation.getIndividuals().add(getFittest(parentPopulation));
-            elitismOffset = 1;
+            final int eliteIndividualAmount = (int) (SIZE_OF_POPULATION * ELITISM_PERCENTAGE);
+            childPopulation.getIndividuals().addAll(getFittests(parentPopulation,
+                    eliteIndividualAmount));
+            elitismOffset = eliteIndividualAmount;
         } else {
             elitismOffset = 0;
         }
@@ -180,7 +214,7 @@ public class PolyalphabeticWorker implements Callable<String> {
             mutate(child);
 
             child.setFitness(
-                    getFitness(text, child.getKey().stream().map(String::valueOf).collect(Collectors.joining())));
+                    getFitness(text, child.getKey().stream().map(String::valueOf).collect(Collectors.joining()), keyLength, keyIndex));
 
             childPopulation.getIndividuals().add(child);
         }
@@ -191,7 +225,7 @@ public class PolyalphabeticWorker implements Callable<String> {
     private Individual tournamentSelection(Population currentPopulation) {
         Population tournamentPopulation = new Population(new ArrayList<>());
         for (int i = 0; i < TOURNAMENT_SELECTION; i++) {
-            int randomIndex = (int) (Math.random() * currentPopulation.getIndividuals().size());
+            int randomIndex = random.nextInt(currentPopulation.getIndividuals().size());
             tournamentPopulation.getIndividuals().add(currentPopulation.getIndividuals().get(randomIndex));
         }
 
@@ -199,13 +233,18 @@ public class PolyalphabeticWorker implements Callable<String> {
     }
 
     private Individual getFittest(Population population) {
-        return population.getIndividuals().stream()
-                .max(Comparator.comparingDouble(Individual::getFitness))
-                .orElseThrow();
+        return getFittests(population, 1).get(0);
     }
 
-    private double getFitness(String encryptedText, String key) {
-        String newText = decrypt(encryptedText, key);
+    private List<Individual> getFittests(Population population, int amount) {
+        return population.getIndividuals().stream()
+                .sorted(Comparator.comparingDouble(Individual::getFitness).reversed())
+                .limit(amount)
+                .collect(Collectors.toList());
+    }
+
+    private double getFitness(String encryptedText, String key, int keyLength, int keyIndex) {
+        String newText = decrypt(encryptedText, key.chars().mapToObj(c -> (char) c).collect(Collectors.toList()), keyLength, keyIndex);
         Map<String, Integer> cipherTrigrams = new HashMap<>();
 
         IntStream.range(0, newText.length() - 3)
@@ -219,21 +258,36 @@ public class PolyalphabeticWorker implements Callable<String> {
                     }
                 });
 
+        if (SIMPLE_FITNESS) {
+            return cipherTrigrams.entrySet().stream()
+                    .mapToDouble(entry -> {
+                        final String decipherTrigram = entry.getKey();
+                        final Integer decipherTrigramFreq = entry.getValue();
 
-        double sigma = 2.0;
+                        final double tableFreq =
+                                Optional.ofNullable(SecurityUtils.TRIGRAMS.get(decipherTrigram)).orElse(0.0);
 
-        return cipherTrigrams.entrySet().stream()
-                .filter(entry -> SecurityUtils.TRIGRAMS.containsKey(entry.getKey()))
-                .mapToDouble(entry -> {
-                    Double sourceLogFreq = SecurityUtils.TRIGRAMS.get(entry.getKey());
-                    Double logFreq = Math.log(entry.getValue()
-                            / (double) (newText.length() - 3));
+                        if (tableFreq != 0) {
+                            return decipherTrigramFreq * (Math.log(tableFreq) / Math.log(2.0));
+                        } else {
+                            return 0;
+                        }
+                    }).sum();
+        } else {
+            double sigma = 2.0;
 
-                    return Math.exp(-(logFreq - sourceLogFreq)
-                            * (logFreq - sourceLogFreq) / (2 * pow(sigma, 2)));
-                })
-                .sum();
+            return cipherTrigrams.entrySet().stream()
+                    .filter(entry -> SecurityUtils.TRIGRAMS.containsKey(entry.getKey()))
+                    .mapToDouble(entry -> {
+                        Double sourceLogFreq = SecurityUtils.TRIGRAMS.get(entry.getKey());
+                        Double logFreq = Math.log(entry.getValue()
+                                / (double) (newText.length() - 3));
 
+                        return Math.exp(-(logFreq - sourceLogFreq)
+                                * (logFreq - sourceLogFreq) / (2 * pow(sigma, 2)));
+                    })
+                    .sum();
+        }
     }
 
     private Stream<Character> getEnglishAlphabetStream() {
@@ -265,7 +319,7 @@ public class PolyalphabeticWorker implements Callable<String> {
                             .filter(index -> child.getKey().get(index).equals(EMPTY_CHAR))
                             .boxed()
                             .collect(Collectors.toList());
-                    int randomIndex = (int) (Math.random() * freeIndexes.size());
+                    int randomIndex = random.nextInt(freeIndexes.size());
 
                     child.getKey().set(freeIndexes.get(randomIndex), character);
                 });
@@ -279,9 +333,9 @@ public class PolyalphabeticWorker implements Callable<String> {
 
         IntStream.range(0, ALPHABET_LENGTH)
                 .forEach(index -> {
-                    if (Math.random() <= MUTATION_POSSIBILITY) {
-                        final int firstPosition = (int) (Math.random() * ALPHABET_LENGTH);
-                        final int secondPosition = (int) (Math.random() * ALPHABET_LENGTH);
+                    if (random.nextDouble() <= MUTATION_POSSIBILITY) {
+                        final int firstPosition = random.nextInt(ALPHABET_LENGTH);
+                        final int secondPosition = random.nextInt(ALPHABET_LENGTH);
 
                         char buffer = key.get(firstPosition);
                         key.set(firstPosition, key.get(secondPosition));
@@ -292,7 +346,7 @@ public class PolyalphabeticWorker implements Callable<String> {
 
     private Individual getParentForGen(Individual firstParent, Individual secondParent) {
 
-        return Math.random() <= CROSSOVER_POSSIBILITY ? firstParent : secondParent;
+        return random.nextDouble() <= CROSSOVER_POSSIBILITY ? firstParent : secondParent;
     }
 
     private Map<Integer, List<Character>> createCoincidenceTable(final char[] textSymbols, final int keyLength) {
