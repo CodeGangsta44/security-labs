@@ -10,7 +10,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,7 +31,7 @@ public class PolyalphabeticWorker implements Callable<String> {
     private static final int SIZE_OF_POPULATION = 300;
     private static final int MAX_GENERATION = 500;
     private static final int ALPHABET_LENGTH = 26;
-    private static final double CROSSOVER_POSSIBILITY = 0.7;
+    private static final double CROSSOVER_POSSIBILITY = 0.5;
     private static final double MUTATION_POSSIBILITY = 0.1;
     private static final char EMPTY_CHAR = '_';
     private static final Random random = new Random();
@@ -384,7 +383,7 @@ public class PolyalphabeticWorker implements Callable<String> {
             final double fcFreq = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(Character.toLowerCase(fpChar));
             final double scFreq = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(Character.toLowerCase(spChar));
 
-            if (fcFreq >= scFreq) {
+            if (fcFreq <= scFreq) {
                 if (!rtlChildKey.contains(fpChar)) {
                     rtlChildKey.add(0, fpChar);
                     unusedCharacters.remove(fpChar);
