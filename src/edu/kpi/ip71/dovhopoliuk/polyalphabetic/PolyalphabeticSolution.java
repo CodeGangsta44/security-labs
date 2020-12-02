@@ -9,9 +9,7 @@ import java.util.stream.Stream;
 public class PolyalphabeticSolution extends AbstractSolution {
     @Override
     protected Callable<String>[] createWorkers(String text) {
-        return Stream.of(new PolyalphabeticWorker(text), new PolyalphabeticWorker(text), new PolyalphabeticWorker(text),
-                new PolyalphabeticWorker(text), new PolyalphabeticWorker(text), new PolyalphabeticWorker(text),
-                new PolyalphabeticWorker(text), new PolyalphabeticWorker(text))
+        return Stream.of(new PolyalphabeticWorker(text))
                 .toArray(PolyalphabeticWorker[]::new);
     }
 }
