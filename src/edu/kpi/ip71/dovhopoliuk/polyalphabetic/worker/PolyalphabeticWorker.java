@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -207,16 +208,22 @@ public class PolyalphabeticWorker implements Callable<String> {
             elitismOffset = 0;
         }
 
-        for (int i = elitismOffset; i < parentPopulation.getIndividuals().size(); i++) {
+        for (int i = elitismOffset; i < parentPopulation.getIndividuals().size() - 1; i += 2) {
             Individual p1 = tournamentSelection(parentPopulation);
             Individual p2 = tournamentSelection(parentPopulation);
-            Individual child = crossover(p1, p2);
-            mutate(child);
+            List<Individual> children = crossover(p1, p2);
 
-            child.setFitness(
-                    getFitness(text, child.getKey().stream().map(String::valueOf).collect(Collectors.joining())));
+            final Individual c1 = children.get(0);
+            final Individual c2 = children.get(1);
 
-            childPopulation.getIndividuals().add(child);
+            mutate(c1);
+            mutate(c2);
+
+            c1.setFitness(getFitness(text, c1.getKey().stream().map(String::valueOf).collect(Collectors.joining())));
+            c2.setFitness(getFitness(text, c2.getKey().stream().map(String::valueOf).collect(Collectors.joining())));
+
+            childPopulation.getIndividuals().add(c1);
+            childPopulation.getIndividuals().add(c2);
         }
 
         return childPopulation;
@@ -251,34 +258,16 @@ public class PolyalphabeticWorker implements Callable<String> {
 
     private double getFitness(String encryptedText, String key) {
         String newText = decrypt(encryptedText, key);
-        Map<String, Integer> cipherTrigrams = new HashMap<>();
+        Map<String, Integer> cipherTrigrams = getNgramsForText(newText, 3);
 
-        IntStream.range(0, newText.length() - 3)
-                .mapToObj(i -> newText.substring(i, i + 3))
-                .forEach(tri -> {
-                    if (cipherTrigrams.containsKey(tri)) {
-                        Integer count = cipherTrigrams.get(tri);
-                        cipherTrigrams.put(tri, count + 1);
-                    } else {
-                        cipherTrigrams.put(tri, 1);
-                    }
-                });
+        Map<String, Integer> cipherFourgrams = getNgramsForText(newText, 4);
+
 
         if (SIMPLE_FITNESS) {
-            return cipherTrigrams.entrySet().stream()
-                    .mapToDouble(entry -> {
-                        final String decipherTrigram = entry.getKey();
-                        final Integer decipherTrigramFreq = entry.getValue();
+            final double trigramSum = getNgramSum(cipherTrigrams, SecurityUtils.TRIGRAMS);
 
-                        final double tableFreq =
-                                Optional.ofNullable(SecurityUtils.TRIGRAMS.get(decipherTrigram)).orElse(0.0);
-
-                        if (tableFreq != 0) {
-                            return decipherTrigramFreq * (Math.log(tableFreq) / Math.log(2.0));
-                        } else {
-                            return 0;
-                        }
-                    }).sum();
+            final double fourgramSum = getNgramSum(cipherFourgrams, SecurityUtils.FOURGRAMS);
+            return trigramSum;
         } else {
             double sigma = 2.0;
 
@@ -296,41 +285,134 @@ public class PolyalphabeticWorker implements Callable<String> {
         }
     }
 
+    private double getNgramSum(Map<String, Integer> cipherFourgrams, Map<String, Double> fourgrams) {
+        return cipherFourgrams.entrySet().stream()
+                .mapToDouble(entry -> {
+                    final String decipherFourgram = entry.getKey();
+                    final Integer decipherFourgramFreq = entry.getValue();
+
+                    final double tableFreq =
+                            Optional.ofNullable(fourgrams.get(decipherFourgram)).orElse(0.0);
+
+                    if (tableFreq != 0) {
+                        return decipherFourgramFreq * (Math.log(tableFreq) / Math.log(2.0));
+                    } else {
+                        return 0;
+                    }
+                }).sum();
+    }
+
+    private Map<String, Integer> getNgramsForText(String newText, int n) {
+        Map<String, Integer> cipherFourgrams = new HashMap<>();
+
+        IntStream.range(0, newText.length() - n)
+                .mapToObj(i -> newText.substring(i, i + n))
+                .forEach(gram -> {
+                    if (cipherFourgrams.containsKey(gram)) {
+                        Integer count = cipherFourgrams.get(gram);
+                        cipherFourgrams.put(gram, count + 1);
+                    } else {
+                        cipherFourgrams.put(gram, 1);
+                    }
+                });
+        return cipherFourgrams;
+    }
+
     private Stream<Character> getEnglishAlphabetStream() {
         return Arrays.stream(SecurityUtils.ENGLISH_ALPHABET.split(""))
                 .map(st -> st.charAt(0));
     }
 
-    private Individual crossover(final Individual firstParent, final Individual secondParent) {
+    public List<Individual> crossover(final Individual firstParent, final Individual secondParent) {
 
-        Individual child = new Individual();
+        Individual ltrChild = new Individual();
+        Individual rtlChild = new Individual();
 
-        child.setKey(IntStream.range(0, ALPHABET_LENGTH).mapToObj(index -> EMPTY_CHAR).collect(Collectors.toList()));
 
-        IntStream.range(0, ALPHABET_LENGTH)
-                .forEach(index -> {
-                    List<Character> childKey = child.getKey();
-                    Character characterToAdd = getParentForGen(firstParent, secondParent).getKey().get(index);
+        final List<Character> alphabet =
+                SecurityUtils.ENGLISH_ALPHABET.chars().mapToObj(c -> (char) c).map(Character::toUpperCase)
+                        .collect(Collectors.toList());
 
-                    if (!childKey.contains(characterToAdd)) {
-                        childKey.set(index, characterToAdd);
-                    }
-                });
+        List<Character> unusedCharacters = new ArrayList<>(alphabet);
 
-        getEnglishAlphabetStream()
-                .map(Character::toUpperCase)
-                .filter(character -> !child.getKey().contains(character))
-                .forEach(character -> {
-                    List<Integer> freeIndexes = IntStream.range(0, ALPHABET_LENGTH)
-                            .filter(index -> child.getKey().get(index).equals(EMPTY_CHAR))
-                            .boxed()
-                            .collect(Collectors.toList());
-                    int randomIndex = random.nextInt(freeIndexes.size());
+        final List<Character> firstParentKey = firstParent.getKey();
+        final List<Character> secondParentKey = secondParent.getKey();
 
-                    child.getKey().set(freeIndexes.get(randomIndex), character);
-                });
+        final List<Character> ltrChildKey = new ArrayList<>();
 
-        return child;
+        for (int i = 0; i < alphabet.size(); i++) {
+            final Character fpChar = firstParentKey.get(i);
+            final Character spChar = secondParentKey.get(i);
+
+            final double fcFreq = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(Character.toLowerCase(fpChar));
+            final double scFreq = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(Character.toLowerCase(spChar));
+
+            if (fcFreq >= scFreq) {
+                if (!ltrChildKey.contains(fpChar)) {
+                    ltrChildKey.add(fpChar);
+                    unusedCharacters.remove(fpChar);
+                } else if (!ltrChildKey.contains(spChar)) {
+                    ltrChildKey.add(spChar);
+                    unusedCharacters.remove(spChar);
+                } else {
+                    final int randI = random.nextInt(unusedCharacters.size());
+                    ltrChildKey.add(unusedCharacters.get(randI));
+                    unusedCharacters.remove(randI);
+                }
+            } else {
+                if (!ltrChildKey.contains(spChar)) {
+                    ltrChildKey.add(spChar);
+                    unusedCharacters.remove(spChar);
+                } else if (!ltrChildKey.contains(fpChar)) {
+                    ltrChildKey.add(fpChar);
+                    unusedCharacters.remove(fpChar);
+                } else {
+                    final int randI = random.nextInt(unusedCharacters.size());
+                    ltrChildKey.add(unusedCharacters.get(randI));
+                    unusedCharacters.remove(randI);
+                }
+            }
+        }
+        ltrChild.setKey(ltrChildKey);
+
+        final List<Character> rtlChildKey = new ArrayList<>();
+        unusedCharacters = new ArrayList<>(alphabet);
+        for (int i = alphabet.size() - 1; i >= 0; i--) {
+            final Character fpChar = firstParentKey.get(i);
+            final Character spChar = secondParentKey.get(i);
+
+            final double fcFreq = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(Character.toLowerCase(fpChar));
+            final double scFreq = SecurityUtils.ENGLISH_LETTERS_FREQUENCY.get(Character.toLowerCase(spChar));
+
+            if (fcFreq >= scFreq) {
+                if (!rtlChildKey.contains(fpChar)) {
+                    rtlChildKey.add(0, fpChar);
+                    unusedCharacters.remove(fpChar);
+                } else if (!rtlChildKey.contains(spChar)) {
+                    rtlChildKey.add(0, spChar);
+                    unusedCharacters.remove(spChar);
+                } else {
+                    final int randI = random.nextInt(unusedCharacters.size());
+                    rtlChildKey.add(0, unusedCharacters.get(randI));
+                    unusedCharacters.remove(randI);
+                }
+            } else {
+                if (!rtlChildKey.contains(spChar)) {
+                    rtlChildKey.add(0, spChar);
+                    unusedCharacters.remove(spChar);
+                } else if (!rtlChildKey.contains(fpChar)) {
+                    rtlChildKey.add(0, fpChar);
+                    unusedCharacters.remove(fpChar);
+                } else {
+                    final int randI = random.nextInt(unusedCharacters.size());
+                    rtlChildKey.add(0, unusedCharacters.get(randI));
+                    unusedCharacters.remove(randI);
+                }
+            }
+        }
+        rtlChild.setKey(rtlChildKey);
+
+        return List.of(ltrChild, rtlChild);
     }
 
     private void mutate(final Individual child) {
