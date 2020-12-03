@@ -22,6 +22,9 @@ public class LcgCracker implements Cracker {
 
     @Override
     public void crack() {
+
+        logStart();
+
         int playerId = random.nextInt();
         AccountInfo account = casinoClient.createAccount(playerId);
 
@@ -29,9 +32,9 @@ public class LcgCracker implements Cracker {
         BetInfo secondTry = casinoClient.makeBet(PlayMode.LCG, playerId, 10, 10);
         BetInfo thirdTry = casinoClient.makeBet(PlayMode.LCG, playerId, 10, 10);
 
-        int n1 = firstTry.getRealNumber();
-        int n2 = secondTry.getRealNumber();
-        int n3 = thirdTry.getRealNumber();
+        int n1 = (int) firstTry.getRealNumber();
+        int n2 = (int) secondTry.getRealNumber();
+        int n3 = (int) thirdTry.getRealNumber();
 
         long a = ((n3 - n2) * modInverse(n2 - n1, M)) % M;
 
@@ -65,5 +68,10 @@ public class LcgCracker implements Cracker {
             seed = (int) ((a * seed + c) % m);
             return seed;
         }
+    }
+
+    private void logStart() {
+
+        System.out.println("\n-== Starting cracking of Linear Congruential Generator ==-\n");
     }
 }

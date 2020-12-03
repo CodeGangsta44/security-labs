@@ -17,7 +17,6 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 public class CasinoClient {
@@ -61,7 +60,7 @@ public class CasinoClient {
         }
     }
 
-    public BetInfo makeBet(PlayMode mode, long playerId, long amountOfMoney, int betNumber) {
+    public BetInfo makeBet(PlayMode mode, long playerId, long amountOfMoney, long betNumber) {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             String uri =
                     CASINO_URL + "/play" + mode + "?id=" + playerId + "&bet=" + amountOfMoney + "&number=" + betNumber;
