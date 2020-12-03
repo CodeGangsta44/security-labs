@@ -61,7 +61,7 @@ public class CasinoClient {
         }
     }
 
-    public BetInfo makeBet(PlayMode mode, long playerId, long amountOfMoney, long betNumber) {
+    public BetInfo makeBet(PlayMode mode, long playerId, long amountOfMoney, int betNumber) {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             String uri =
                     CASINO_URL + "/play" + mode + "?id=" + playerId + "&bet=" + amountOfMoney + "&number=" + betNumber;

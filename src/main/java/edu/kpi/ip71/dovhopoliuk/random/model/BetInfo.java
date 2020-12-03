@@ -5,7 +5,7 @@ import java.util.Objects;
 public class BetInfo {
     private String message;
     private AccountInfo account;
-    private long realNumber;
+    private int realNumber;
 
     public BetInfo() {
     }
@@ -56,11 +56,11 @@ public class BetInfo {
         this.account = account;
     }
 
-    public long getRealNumber() {
+    public int getRealNumber() {
         return realNumber;
     }
 
-    public void setRealNumber(long realNumber) {
+    public void setRealNumber(int realNumber) {
         this.realNumber = realNumber;
     }
 }

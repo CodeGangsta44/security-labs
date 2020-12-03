@@ -17,7 +17,7 @@ public class LcgCracker implements Cracker {
         BigInteger aB = new BigInteger(String.valueOf(a));
         BigInteger bB = new BigInteger(String.valueOf(b));
 
-        return aB.modInverse(bB).longValueExact();
+        return aB.modInverse(bB).longValue();
     }
 
     @Override
@@ -29,9 +29,9 @@ public class LcgCracker implements Cracker {
         BetInfo secondTry = casinoClient.makeBet(PlayMode.LCG, playerId, 10, 10);
         BetInfo thirdTry = casinoClient.makeBet(PlayMode.LCG, playerId, 10, 10);
 
-        long n1 = firstTry.getRealNumber();
-        long n2 = secondTry.getRealNumber();
-        long n3 = thirdTry.getRealNumber();
+        int n1 = firstTry.getRealNumber();
+        int n2 = secondTry.getRealNumber();
+        int n3 = thirdTry.getRealNumber();
 
         long a = ((n3 - n2) * modInverse(n2 - n1, M)) % M;
 
@@ -41,8 +41,9 @@ public class LcgCracker implements Cracker {
 
         BetInfo currentBet;
         for (int i = 0; i < 10; i++) {
-            long winBet = lcgRandom.next();
-            currentBet = casinoClient.makeBet(PlayMode.LCG, playerId, 500, winBet);
+            int winBet = lcgRandom.nextInt();
+            System.out.println("Win bet: " + winBet );
+            currentBet = casinoClient.makeBet(PlayMode.LCG, playerId, 10, winBet);
             System.out.println(currentBet);
         }
     }
@@ -51,17 +52,17 @@ public class LcgCracker implements Cracker {
         private final long a;
         private final long c;
         private final long m;
-        private long seed;
+        private int seed;
 
-        public LcgRandom(long a, long c, long m, long seed) {
+        public LcgRandom(long a, long c, long m, int seed) {
             this.a = a;
             this.c = c;
             this.m = m;
             this.seed = seed;
         }
 
-        public long next() {
-            seed = (a * seed + c) % m;
+        public int nextInt() {
+            seed = (int) ((a * seed + c) % m);
             return seed;
         }
     }
