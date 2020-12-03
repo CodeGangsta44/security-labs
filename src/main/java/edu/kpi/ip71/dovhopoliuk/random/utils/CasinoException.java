@@ -1,4 +1,4 @@
-package edu.kpi.ip71.dovhopoliuk.random;
+package edu.kpi.ip71.dovhopoliuk.random.utils;
 
 public class CasinoException extends RuntimeException {
     public CasinoException() {

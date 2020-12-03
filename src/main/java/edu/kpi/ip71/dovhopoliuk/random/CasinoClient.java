@@ -5,14 +5,19 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import edu.kpi.ip71.dovhopoliuk.random.model.AccountInfo;
 import edu.kpi.ip71.dovhopoliuk.random.model.BetInfo;
 import edu.kpi.ip71.dovhopoliuk.random.model.ErrorInfo;
+import edu.kpi.ip71.dovhopoliuk.random.model.PlayMode;
+import edu.kpi.ip71.dovhopoliuk.random.utils.CasinoException;
+import edu.kpi.ip71.dovhopoliuk.random.utils.Config;
 import org.apache.http.HttpEntity;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 public class CasinoClient {
@@ -25,7 +30,7 @@ public class CasinoClient {
         mapper.registerModule(new JavaTimeModule());
     }
 
-    public AccountInfo createAccount(int id) {
+    public AccountInfo createAccount(long id) {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpGet httpGet = new HttpGet(CASINO_URL + "/createacc" + "?id=" + id);
 
@@ -56,7 +61,7 @@ public class CasinoClient {
         }
     }
 
-    public BetInfo makeBet(PlayMode mode, int playerId, int amountOfMoney, int betNumber) {
+    public BetInfo makeBet(PlayMode mode, long playerId, long amountOfMoney, long betNumber) {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             String uri =
                     CASINO_URL + "/play" + mode + "?id=" + playerId + "&bet=" + amountOfMoney + "&number=" + betNumber;
@@ -74,8 +79,8 @@ public class CasinoClient {
                     }
                 } else {
                     if (Objects.nonNull(entity)) {
-                        ErrorInfo errorInfo = mapper.readValue(entity.getContent(), ErrorInfo.class);
-                        throw new CasinoException(errorInfo.getError());
+                        String plainResponse = EntityUtils.toString(entity);
+                        throw new CasinoException(plainResponse);
                     } else {
                         throw new NullPointerException();
                     }
