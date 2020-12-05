@@ -1,5 +1,6 @@
 package edu.kpi.ip71.dovhopoliuk.random;
 
+import edu.kpi.ip71.dovhopoliuk.random.cracker.BetterMtCracker;
 import edu.kpi.ip71.dovhopoliuk.random.cracker.LcgCracker;
 import edu.kpi.ip71.dovhopoliuk.random.cracker.MtCracker;
 
@@ -9,5 +10,6 @@ public class Main {
 
         new LcgCracker().crack();
         new MtCracker().crack();
+        new BetterMtCracker().crack();
     }
 }

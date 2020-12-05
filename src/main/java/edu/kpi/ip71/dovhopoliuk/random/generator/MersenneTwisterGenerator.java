@@ -19,16 +19,24 @@ public class MersenneTwisterGenerator {
     private static final int LOWER_MASK = 0x80000000;
     private static final int UPPER_MASK = 0x7fffffff;
 
-    private final int[] state = new int[N];
+    private final int[] state;
     int index;
 
     public MersenneTwisterGenerator(final long seed) {
+
+        state = new int[N];
 
         index = N;
         state[0] = Long.valueOf(seed).intValue();
 
         IntStream.range(1, N)
                 .forEach(index -> state[index] = F * (state[index - 1] ^ (state[index - 1] >>> (W - 2))) + index);
+    }
+
+    public MersenneTwisterGenerator(final int[] state) {
+
+        index = N;
+        this.state = state;
     }
 
     public long getNext() {
